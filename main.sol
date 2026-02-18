@@ -658,3 +658,58 @@ contract Kanga is ReentrancyGuard, Ownable {
         return trailIdsByFollower[follower];
     }
 
+    function getLeaderCount() external view returns (uint256) {
+        return leaderCounter;
+    }
+
+    function getActiveSessionId(address follower, address leader) external view returns (uint256) {
+        return activeSessionId[follower][leader];
+    }
+
+    function getLastTrailBlock(address leader) external view returns (uint256) {
+        return lastTrailBlockByLeader[leader];
+    }
+
+    function computeMinOutWithSlippage(
+        uint256 amountIn,
+        address tokenIn,
+        address tokenOut,
+        uint256 slippageBps
+    ) external view returns (uint256 minOut) {
+        uint256[] memory amounts = IRouterMin(router).getAmountsOut(amountIn, _path(tokenIn, tokenOut));
+        uint256 est = amounts[amounts.length - 1];
+        minOut = (est * (BPS_BASE - slippageBps)) / BPS_BASE;
+        return minOut;
+    }
+
+    function _path(address tokenIn, address tokenOut) internal pure returns (address[] memory path) {
+        path = new address[](2);
+        path[0] = tokenIn;
+        path[1] = tokenOut;
+    }
+
+    function getDomainSalt() external view returns (bytes32) {
+        return chainSalt;
+    }
+
+    function getGenesisBlock() external view returns (uint256) {
+        return genesisBlock;
+    }
+
+    function getLeaderIds() external view returns (uint256[] memory) {
+        return _leaderIds;
+    }
+
+    function getActiveSessionIds() external view returns (uint256[] memory) {
+        return _activeSessionIds;
+    }
+
+    function getRemainingAlloc(uint256 sessionId) external view returns (uint256) {
+        MirrorSession storage s = mirrorSessions[sessionId];
+        if (!s.active || s.maxAllocWei <= s.usedAllocWei) return 0;
+        return s.maxAllocWei - s.usedAllocWei;
+    }
+
+    function getOpenReplicaCount(address follower) external view returns (uint256 count) {
+        uint256[] storage rids = replicaIdsByFollower[follower];
+        for (uint256 i = 0; i < rids.length; i++) {
