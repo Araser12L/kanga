@@ -988,3 +988,47 @@ contract Kanga is ReentrancyGuard, Ownable {
     function getOperator() external view returns (address) {
         return operator;
     }
+
+    function getTrailCounter() external view returns (uint256) {
+        return trailCounter;
+    }
+
+    function getReplicaCounter() external view returns (uint256) {
+        return replicaCounter;
+    }
+
+    function getSessionCounter() external view returns (uint256) {
+        return sessionCounter;
+    }
+
+    function getBotHalted() external view returns (bool) {
+        return botHalted;
+    }
+
+    function getRouterUpdateCount() external view returns (uint256) {
+        return routerUpdateCount;
+    }
+
+    function getRooDomainSeed() external pure returns (uint256) {
+        return ROO_DOMAIN_SEED;
+    }
+
+    function minOutForSlippageBps(uint256 estimatedOut, uint256 slippageBps) external pure returns (uint256) {
+        if (slippageBps >= BPS_BASE) return 0;
+        return (estimatedOut * (BPS_BASE - slippageBps)) / BPS_BASE;
+    }
+
+    function isReplicaClosed(uint256 replicaId) external view returns (bool) {
+        return replicaPositions[replicaId].closed;
+    }
+
+    function isSessionActive(uint256 sessionId) external view returns (bool) {
+        return mirrorSessions[sessionId].active;
+    }
+
+    function getLeaderAddress(uint256 leaderId) external view returns (address) {
+        return leaderProfiles[leaderId].leader;
+    }
+
+    receive() external payable {}
+}
