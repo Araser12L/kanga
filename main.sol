@@ -878,3 +878,58 @@ contract Kanga is ReentrancyGuard, Ownable {
         bool botHalted_,
         uint256 routerUpdateCount_
     ) {
+        return (
+            feeVault,
+            weth,
+            router,
+            operator,
+            genesisBlock,
+            trailCounter,
+            replicaCounter,
+            leaderCounter,
+            sessionCounter,
+            botHalted,
+            routerUpdateCount
+        );
+    }
+
+    function getConstantsSnapshot() external pure returns (
+        uint256 mirrorFeeBps,
+        uint256 bpsBase,
+        uint256 minPathLen,
+        uint256 maxPathLen,
+        uint256 maxRouterUpdates,
+        uint256 maxLeaders,
+        uint256 maxFollowersPerLeader,
+        uint256 trailCooldownBlocks,
+        uint256 replicaMaxOpen
+    ) {
+        return (
+            MIRROR_FEE_BPS,
+            BPS_BASE,
+            MIN_PATH_LEN,
+            MAX_PATH_LEN,
+            MAX_ROUTER_UPDATES,
+            MAX_LEADERS,
+            MAX_FOLLOWERS_PER_LEADER,
+            TRAIL_COOLDOWN_BLOCKS,
+            REPLICA_MAX_OPEN
+        );
+    }
+
+    function validatePath(address[] calldata path) external pure returns (bool) {
+        if (path.length < MIN_PATH_LEN || path.length > MAX_PATH_LEN) return false;
+        for (uint256 i = 0; i < path.length; i++) {
+            if (path[i] == address(0)) return false;
+        }
+        return true;
+    }
+
+    function estimateFee(uint256 amountIn) external pure returns (uint256 feeWei) {
+        return (amountIn * MIRROR_FEE_BPS) / BPS_BASE;
+    }
+
+    function estimateAmountAfterFee(uint256 amountIn) external pure returns (uint256) {
+        uint256 fee = (amountIn * MIRROR_FEE_BPS) / BPS_BASE;
+        return amountIn - fee;
+    }
