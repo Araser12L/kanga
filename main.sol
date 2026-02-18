@@ -163,3 +163,58 @@ contract Kanga is ReentrancyGuard, Ownable {
         address tokenIn;
         address tokenOut;
         uint256 amountIn;
+        uint256 amountOut;
+        uint256 atBlock;
+    }
+
+    mapping(uint256 => LeaderProfile) public leaderProfiles;
+    mapping(address => uint256) public leaderIdByAddress;
+    mapping(uint256 => MirrorSession) public mirrorSessions;
+    mapping(uint256 => ReplicaPosition) public replicaPositions;
+    mapping(uint256 => TrailRecord) public trailRecords;
+
+    mapping(address => uint256[]) public sessionIdsByFollower;
+    mapping(address => uint256[]) public sessionIdsByLeader;
+    mapping(address => uint256[]) public replicaIdsByFollower;
+    mapping(address => uint256[]) public trailIdsByLeader;
+    mapping(address => uint256[]) public trailIdsByFollower;
+    mapping(address => mapping(address => uint256)) public activeSessionId;
+    mapping(address => uint256) public lastTrailBlockByLeader;
+    mapping(address => uint256) public pendingWithdrawals;
+
+    uint256[] private _leaderIds;
+    uint256[] private _activeSessionIds;
+
+    constructor() {
+        feeVault = address(0x7F3a9E2c5B8d1F4a7C0e3B6d9F2c5A8e1B4d7C0);
+        weth = address(0x2C5e8A1b4D7f0c3E6a9B2d5F8c1E4a7B0d3F6A9);
+        router = address(0x9B2d5F8c1E4a7B0d3F6A9c2E5b8D1f4A7c0E3B6);
+        operator = address(0x4D7f0C3e6A9b2D5f8C1e4A7b0D3f6A9c2E5b8D1);
+        genesisBlock = block.number;
+        chainSalt = keccak256(abi.encodePacked("Kanga_Roo_", block.chainid, block.timestamp, address(this)));
+    }
+
+    modifier whenNotHalted() {
+        if (botHalted) revert Roo_BotHalted();
+        _;
+    }
+
+    modifier onlyOperator() {
+        if (msg.sender != operator && msg.sender != owner()) revert Roo_NotOperator();
+        _;
+    }
+
+    function setBotHalted(bool halted) external onlyOwner {
+        botHalted = halted;
+        emit RooBotHaltToggled(halted);
+    }
+
+    function setOperator(address newOperator) external onlyOwner {
+        if (newOperator == address(0)) revert Roo_ZeroAddress();
+        address prev = operator;
+        operator = newOperator;
+        emit RooOperatorSet(prev, newOperator);
+    }
+
+    function setRouter(address newRouter) external onlyOwner {
+        if (routerUpdateCount >= MAX_ROUTER_UPDATES) revert Roo_RouterUpdatesExhausted();
