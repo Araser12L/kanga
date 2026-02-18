@@ -548,3 +548,58 @@ contract Kanga is ReentrancyGuard, Ownable {
     }
 
     function withdrawAccruedFees(address to, uint256 amountWei) external onlyOwner nonReentrant {
+        if (to == address(0)) revert Roo_ZeroAddress();
+        (bool sent,) = to.call{value: amountWei}("");
+        if (!sent) revert Roo_TransferOutFailed();
+        emit RooFeeWithdrawn(to, amountWei, block.number);
+    }
+
+    function getLeaderProfile(uint256 leaderId) external view returns (
+        address leader,
+        uint256 maxFollowersCap,
+        uint256 followerCount,
+        uint256 totalVolumeIn,
+        bool active,
+        uint256 registeredAtBlock
+    ) {
+        LeaderProfile storage lp = leaderProfiles[leaderId];
+        return (
+            lp.leader,
+            lp.maxFollowersCap,
+            lp.followerCount,
+            lp.totalVolumeIn,
+            lp.active,
+            lp.registeredAtBlock
+        );
+    }
+
+    function getMirrorSession(uint256 sessionId) external view returns (
+        address follower,
+        address leader,
+        uint256 maxAllocWei,
+        uint256 usedAllocWei,
+        uint256 trailSlippageBps,
+        uint256 openedAtBlock,
+        bool active
+    ) {
+        MirrorSession storage s = mirrorSessions[sessionId];
+        return (
+            s.follower,
+            s.leader,
+            s.maxAllocWei,
+            s.usedAllocWei,
+            s.trailSlippageBps,
+            s.openedAtBlock,
+            s.active
+        );
+    }
+
+    function getReplicaPosition(uint256 replicaId) external view returns (
+        address follower,
+        address leader,
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 openedAtBlock,
+        bool closed,
+        uint256 amountOutOnClose
