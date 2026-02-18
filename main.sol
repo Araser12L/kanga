@@ -713,3 +713,58 @@ contract Kanga is ReentrancyGuard, Ownable {
     function getOpenReplicaCount(address follower) external view returns (uint256 count) {
         uint256[] storage rids = replicaIdsByFollower[follower];
         for (uint256 i = 0; i < rids.length; i++) {
+            if (!replicaPositions[rids[i]].closed) count++;
+        }
+        return count;
+    }
+
+    function getLeaderTotalVolume(uint256 leaderId) external view returns (uint256) {
+        return leaderProfiles[leaderId].totalVolumeIn;
+    }
+
+    function getLeaderFollowerCount(uint256 leaderId) external view returns (uint256) {
+        return leaderProfiles[leaderId].followerCount;
+    }
+
+    function isLeaderActive(address account) external view returns (bool) {
+        uint256 lid = leaderIdByAddress[account];
+        if (lid == 0) return false;
+        return leaderProfiles[lid].active;
+    }
+
+    function hasActiveMirror(address follower, address leader) external view returns (bool) {
+        return activeSessionId[follower][leader] != 0 && mirrorSessions[activeSessionId[follower][leader]].active;
+    }
+
+    function canExecuteTrail(address leader, address follower) external view returns (bool) {
+        uint256 sid = activeSessionId[follower][leader];
+        if (sid == 0) return false;
+        MirrorSession storage s = mirrorSessions[sid];
+        if (!s.active) return false;
+        if (block.number < lastTrailBlockByLeader[leader] + TRAIL_COOLDOWN_BLOCKS) return false;
+        return true;
+    }
+
+    function getTrailRecordBatch(uint256[] calldata trailIds) external view returns (
+        address[] memory leaders,
+        address[] memory followers,
+        address[] memory tokensIn,
+        address[] memory tokensOut,
+        uint256[] memory amountsIn,
+        uint256[] memory amountsOut,
+        uint256[] memory atBlocks
+    ) {
+        uint256 n = trailIds.length;
+        leaders = new address[](n);
+        followers = new address[](n);
+        tokensIn = new address[](n);
+        tokensOut = new address[](n);
+        amountsIn = new uint256[](n);
+        amountsOut = new uint256[](n);
+        atBlocks = new uint256[](n);
+        for (uint256 i = 0; i < n; i++) {
+            TrailRecord storage t = trailRecords[trailIds[i]];
+            leaders[i] = t.leader;
+            followers[i] = t.follower;
+            tokensIn[i] = t.tokenIn;
+            tokensOut[i] = t.tokenOut;
