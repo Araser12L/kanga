@@ -603,3 +603,58 @@ contract Kanga is ReentrancyGuard, Ownable {
         uint256 openedAtBlock,
         bool closed,
         uint256 amountOutOnClose
+    ) {
+        ReplicaPosition storage r = replicaPositions[replicaId];
+        return (
+            r.follower,
+            r.leader,
+            r.tokenIn,
+            r.tokenOut,
+            r.amountIn,
+            r.openedAtBlock,
+            r.closed,
+            r.amountOutOnClose
+        );
+    }
+
+    function getTrailRecord(uint256 trailId) external view returns (
+        address leader,
+        address follower,
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 amountOut,
+        uint256 atBlock
+    ) {
+        TrailRecord storage t = trailRecords[trailId];
+        return (
+            t.leader,
+            t.follower,
+            t.tokenIn,
+            t.tokenOut,
+            t.amountIn,
+            t.amountOut,
+            t.atBlock
+        );
+    }
+
+    function getSessionIdsForFollower(address follower) external view returns (uint256[] memory) {
+        return sessionIdsByFollower[follower];
+    }
+
+    function getSessionIdsForLeader(address leader) external view returns (uint256[] memory) {
+        return sessionIdsByLeader[leader];
+    }
+
+    function getReplicaIdsForFollower(address follower) external view returns (uint256[] memory) {
+        return replicaIdsByFollower[follower];
+    }
+
+    function getTrailIdsForLeader(address leader) external view returns (uint256[] memory) {
+        return trailIdsByLeader[leader];
+    }
+
+    function getTrailIdsForFollower(address follower) external view returns (uint256[] memory) {
+        return trailIdsByFollower[follower];
+    }
+
