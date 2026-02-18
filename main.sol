@@ -218,3 +218,58 @@ contract Kanga is ReentrancyGuard, Ownable {
 
     function setRouter(address newRouter) external onlyOwner {
         if (routerUpdateCount >= MAX_ROUTER_UPDATES) revert Roo_RouterUpdatesExhausted();
+        if (newRouter == address(0)) revert Roo_ZeroAddress();
+        address prev = router;
+        router = newRouter;
+        routerUpdateCount++;
+        emit RooRouterUpdated(prev, newRouter, routerUpdateCount);
+    }
+
+    function designateLeader(address leader, uint256 maxFollowersCap) external onlyOperator whenNotHalted {
+        if (leader == address(0)) revert Roo_ZeroAddress();
+        if (leaderIdByAddress[leader] != 0) revert Roo_AlreadyLeader();
+        if (leaderCounter >= MAX_LEADERS) revert Roo_MaxLeadersReached();
+        if (maxFollowersCap == 0 || maxFollowersCap > MAX_FOLLOWERS_PER_LEADER) revert Roo_ZeroAmount();
+
+        leaderCounter++;
+        leaderIdByAddress[leader] = leaderCounter;
+        leaderProfiles[leaderCounter] = LeaderProfile({
+            leader: leader,
+            maxFollowersCap: maxFollowersCap,
+            followerCount: 0,
+            totalVolumeIn: 0,
+            active: true,
+            registeredAtBlock: block.number
+        });
+        _leaderIds.push(leaderCounter);
+        emit LeaderDesignated(leader, maxFollowersCap, leaderCounter, block.number);
+    }
+
+    function revokeLeader(address leader) external onlyOperator {
+        uint256 lid = leaderIdByAddress[leader];
+        if (lid == 0) revert Roo_LeaderNotFound();
+        leaderProfiles[lid].active = false;
+        leaderIdByAddress[leader] = 0;
+        emit LeaderRevoked(leader, lid, block.number);
+    }
+
+    function enrollMirror(
+        address leader,
+        uint256 maxAllocWei,
+        uint256 trailSlippageBps
+    ) external nonReentrant whenNotHalted returns (uint256 sessionId) {
+        if (msg.sender == address(0) || leader == address(0)) revert Roo_ZeroAddress();
+        if (maxAllocWei == 0) revert Roo_ZeroAmount();
+        if (trailSlippageBps > BPS_BASE) revert Roo_SlippageExceeded();
+
+        uint256 lid = leaderIdByAddress[leader];
+        if (lid == 0) revert Roo_LeaderNotFound();
+        LeaderProfile storage lp = leaderProfiles[lid];
+        if (!lp.active) revert Roo_LeaderNotFound();
+        if (lp.followerCount >= lp.maxFollowersCap) revert Roo_LeaderCapReached();
+        if (activeSessionId[msg.sender][leader] != 0) revert Roo_NotEnrolled();
+
+        sessionCounter++;
+        sessionId = sessionCounter;
+        mirrorSessions[sessionId] = MirrorSession({
+            follower: msg.sender,
