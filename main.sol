@@ -328,3 +328,58 @@ contract Kanga is ReentrancyGuard, Ownable {
         uint256 amountInAfterFee = amountIn - feeWei;
 
         IERC20Min(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+        if (feeWei > 0) {
+            bool ok = IERC20Min(tokenIn).transfer(feeVault, feeWei);
+            if (!ok) revert Roo_TransferOutFailed();
+        }
+
+        IERC20Min(tokenIn).approve(router, amountInAfterFee);
+        uint256 balanceBefore = IERC20Min(tokenOut).balanceOf(follower);
+
+        try IRouterMin(router).swapExactTokensForTokens(
+            amountInAfterFee,
+            amountOutMin,
+            path,
+            follower,
+            deadline
+        ) returns (uint256[] memory amounts) {
+            amountOut = amounts[amounts.length - 1];
+        } catch {
+            IERC20Min(tokenIn).approve(router, 0);
+            revert Roo_RouterCallFailed();
+        }
+
+        IERC20Min(tokenIn).approve(router, 0);
+        uint256 balanceAfter = IERC20Min(tokenOut).balanceOf(follower);
+        if (balanceAfter <= balanceBefore) revert Roo_TransferOutFailed();
+        amountOut = balanceAfter - balanceBefore;
+
+        s.usedAllocWei += amountIn;
+        uint256 lid = leaderIdByAddress[msg.sender];
+        if (lid != 0) leaderProfiles[lid].totalVolumeIn += amountIn;
+        lastTrailBlockByLeader[msg.sender] = block.number;
+
+        trailId = ++trailCounter;
+        trailRecords[trailId] = TrailRecord({
+            leader: msg.sender,
+            follower: follower,
+            tokenIn: tokenIn,
+            tokenOut: tokenOut,
+            amountIn: amountIn,
+            amountOut: amountOut,
+            atBlock: block.number
+        });
+        trailIdsByLeader[msg.sender].push(trailId);
+        trailIdsByFollower[follower].push(trailId);
+        emit TrailExecuted(msg.sender, follower, tokenIn, tokenOut, amountIn, amountOut, trailId, block.number);
+        return (amountOut, trailId);
+    }
+
+    function executeTrailBatch(
+        address[] calldata followers,
+        address[] calldata tokensIn,
+        address[] calldata tokensOut,
+        uint256[] calldata amountsIn,
+        uint256[] calldata amountsOutMin,
+        uint256 deadline
+    ) external nonReentrant whenNotHalted returns (uint256 executedCount, uint256 fromTrailId) {
