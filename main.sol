@@ -273,3 +273,58 @@ contract Kanga is ReentrancyGuard, Ownable {
         sessionId = sessionCounter;
         mirrorSessions[sessionId] = MirrorSession({
             follower: msg.sender,
+            leader: leader,
+            maxAllocWei: maxAllocWei,
+            usedAllocWei: 0,
+            trailSlippageBps: trailSlippageBps,
+            openedAtBlock: block.number,
+            active: true
+        });
+        activeSessionId[msg.sender][leader] = sessionId;
+        sessionIdsByFollower[msg.sender].push(sessionId);
+        sessionIdsByLeader[leader].push(sessionId);
+        lp.followerCount++;
+        _activeSessionIds.push(sessionId);
+        emit MirrorEnrolled(msg.sender, leader, maxAllocWei, trailSlippageBps, sessionId, block.number);
+        return sessionId;
+    }
+
+    function unenrollMirror(uint256 sessionId) external nonReentrant {
+        MirrorSession storage s = mirrorSessions[sessionId];
+        if (s.follower != msg.sender) revert Roo_MirrorSessionNotFound();
+        if (!s.active) revert Roo_MirrorSessionNotFound();
+
+        s.active = false;
+        uint256 lid = leaderIdByAddress[s.leader];
+        if (lid != 0 && leaderProfiles[lid].followerCount > 0) leaderProfiles[lid].followerCount--;
+        activeSessionId[msg.sender][s.leader] = 0;
+        emit MirrorUnenrolled(msg.sender, s.leader, sessionId, block.number);
+    }
+
+    function executeTrail(
+        address follower,
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 amountOutMin,
+        uint256 deadline
+    ) external nonReentrant whenNotHalted returns (uint256 amountOut, uint256 trailId) {
+        if (msg.sender == address(0) || follower == address(0)) revert Roo_ZeroAddress();
+        if (tokenIn == address(0) || tokenOut == address(0)) revert Roo_ZeroAddress();
+        if (amountIn == 0) revert Roo_ZeroAmount();
+
+        uint256 sid = activeSessionId[follower][msg.sender];
+        if (sid == 0) revert Roo_NotEnrolled();
+        MirrorSession storage s = mirrorSessions[sid];
+        if (!s.active) revert Roo_NotEnrolled();
+        if (s.usedAllocWei + amountIn > s.maxAllocWei) revert Roo_AllocExceeded();
+        if (block.number < lastTrailBlockByLeader[msg.sender] + TRAIL_COOLDOWN_BLOCKS) revert Roo_CooldownActive();
+
+        address[] memory path = new address[](2);
+        path[0] = tokenIn;
+        path[1] = tokenOut;
+
+        uint256 feeWei = (amountIn * MIRROR_FEE_BPS) / BPS_BASE;
+        uint256 amountInAfterFee = amountIn - feeWei;
+
+        IERC20Min(tokenIn).transferFrom(msg.sender, address(this), amountIn);
