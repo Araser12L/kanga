@@ -933,3 +933,58 @@ contract Kanga is ReentrancyGuard, Ownable {
         uint256 fee = (amountIn * MIRROR_FEE_BPS) / BPS_BASE;
         return amountIn - fee;
     }
+
+    function blocksUntilNextTrailAllowed(address leader) external view returns (uint256) {
+        uint256 last = lastTrailBlockByLeader[leader];
+        uint256 nextAllowed = last + TRAIL_COOLDOWN_BLOCKS;
+        if (block.number >= nextAllowed) return 0;
+        return nextAllowed - block.number;
+    }
+
+    function getOpenReplicaIdsForFollower(address follower) external view returns (uint256[] memory) {
+        uint256[] storage allIds = replicaIdsByFollower[follower];
+        uint256 count = 0;
+        for (uint256 i = 0; i < allIds.length; i++) {
+            if (!replicaPositions[allIds[i]].closed) count++;
+        }
+        uint256[] memory out = new uint256[](count);
+        uint256 j = 0;
+        for (uint256 i = 0; i < allIds.length; i++) {
+            if (!replicaPositions[allIds[i]].closed) {
+                out[j] = allIds[i];
+                j++;
+            }
+        }
+        return out;
+    }
+
+    function getSessionIdForFollowerLeader(address follower, address leader) external view returns (uint256) {
+        return activeSessionId[follower][leader];
+    }
+
+    function totalVolumeAllLeaders() external view returns (uint256 total) {
+        for (uint256 i = 1; i <= leaderCounter; i++) {
+            total += leaderProfiles[i].totalVolumeIn;
+        }
+        return total;
+    }
+
+    function getLeaderIdList() external view returns (uint256[] memory) {
+        return _leaderIds;
+    }
+
+    function getFeeVault() external view returns (address) {
+        return feeVault;
+    }
+
+    function getWeth() external view returns (address) {
+        return weth;
+    }
+
+    function getRouter() external view returns (address) {
+        return router;
+    }
+
+    function getOperator() external view returns (address) {
+        return operator;
+    }
