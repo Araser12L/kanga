@@ -493,3 +493,58 @@ contract Kanga is ReentrancyGuard, Ownable {
         uint256 amountOutMin,
         uint256 deadline
     ) external nonReentrant whenNotHalted returns (uint256 amountOut, uint256 feeWei) {
+        ReplicaPosition storage r = replicaPositions[replicaId];
+        if (r.follower != msg.sender) revert Roo_ReplicaNotFound();
+        if (r.closed) revert Roo_ReplicaAlreadyClosed();
+
+        address[] memory path = new address[](2);
+        path[0] = r.tokenIn;
+        path[1] = r.tokenOut;
+
+        feeWei = (r.amountIn * MIRROR_FEE_BPS) / BPS_BASE;
+        uint256 amountInAfterFee = r.amountIn - feeWei;
+
+        IERC20Min(r.tokenIn).approve(router, amountInAfterFee);
+        uint256 balanceBefore = IERC20Min(r.tokenOut).balanceOf(msg.sender);
+
+        try IRouterMin(router).swapExactTokensForTokens(
+            amountInAfterFee,
+            amountOutMin,
+            path,
+            msg.sender,
+            deadline
+        ) returns (uint256[] memory amounts) {
+            amountOut = amounts[amounts.length - 1];
+        } catch {
+            IERC20Min(r.tokenIn).approve(router, 0);
+            revert Roo_RouterCallFailed();
+        }
+
+        IERC20Min(r.tokenIn).approve(router, 0);
+        uint256 balanceAfter = IERC20Min(r.tokenOut).balanceOf(msg.sender);
+        if (balanceAfter <= balanceBefore) revert Roo_TransferOutFailed();
+        amountOut = balanceAfter - balanceBefore;
+
+        if (feeWei > 0) {
+            bool ok = IERC20Min(r.tokenIn).transfer(feeVault, feeWei);
+            if (!ok) revert Roo_TransferOutFailed();
+        }
+
+        r.closed = true;
+        r.amountOutOnClose = amountOut;
+        emit ReplicaClosed(msg.sender, replicaId, amountOut, feeWei, block.number);
+        return (amountOut, feeWei);
+    }
+
+    function getQuoteOut(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn
+    ) external view returns (uint256[] memory amounts) {
+        address[] memory path = new address[](2);
+        path[0] = tokenIn;
+        path[1] = tokenOut;
+        return IRouterMin(router).getAmountsOut(amountIn, path);
+    }
+
+    function withdrawAccruedFees(address to, uint256 amountWei) external onlyOwner nonReentrant {
