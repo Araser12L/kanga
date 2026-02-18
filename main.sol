@@ -823,3 +823,58 @@ contract Kanga is ReentrancyGuard, Ownable {
         maxAllocs = new uint256[](n);
         usedAllocs = new uint256[](n);
         slippageBps = new uint256[](n);
+        openedAtBlocks = new uint256[](n);
+        activeFlags = new bool[](n);
+        for (uint256 i = 0; i < n; i++) {
+            MirrorSession storage s = mirrorSessions[sessionIds[i]];
+            followers[i] = s.follower;
+            leaders[i] = s.leader;
+            maxAllocs[i] = s.maxAllocWei;
+            usedAllocs[i] = s.usedAllocWei;
+            slippageBps[i] = s.trailSlippageBps;
+            openedAtBlocks[i] = s.openedAtBlock;
+            activeFlags[i] = s.active;
+        }
+        return (followers, leaders, maxAllocs, usedAllocs, slippageBps, openedAtBlocks, activeFlags);
+    }
+
+    function getLeaderProfileBatch(uint256[] calldata leaderIds) external view returns (
+        address[] memory leaders,
+        uint256[] memory maxCaps,
+        uint256[] memory followerCounts,
+        uint256[] memory totalVolumes,
+        bool[] memory activeFlags,
+        uint256[] memory registeredAtBlocks
+    ) {
+        uint256 n = leaderIds.length;
+        leaders = new address[](n);
+        maxCaps = new uint256[](n);
+        followerCounts = new uint256[](n);
+        totalVolumes = new uint256[](n);
+        activeFlags = new bool[](n);
+        registeredAtBlocks = new uint256[](n);
+        for (uint256 i = 0; i < n; i++) {
+            LeaderProfile storage lp = leaderProfiles[leaderIds[i]];
+            leaders[i] = lp.leader;
+            maxCaps[i] = lp.maxFollowersCap;
+            followerCounts[i] = lp.followerCount;
+            totalVolumes[i] = lp.totalVolumeIn;
+            activeFlags[i] = lp.active;
+            registeredAtBlocks[i] = lp.registeredAtBlock;
+        }
+        return (leaders, maxCaps, followerCounts, totalVolumes, activeFlags, registeredAtBlocks);
+    }
+
+    function getConfigSnapshot() external view returns (
+        address feeVault_,
+        address weth_,
+        address router_,
+        address operator_,
+        uint256 genesisBlock_,
+        uint256 trailCounter_,
+        uint256 replicaCounter_,
+        uint256 leaderCounter_,
+        uint256 sessionCounter_,
+        bool botHalted_,
+        uint256 routerUpdateCount_
+    ) {
