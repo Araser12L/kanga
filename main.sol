@@ -768,3 +768,58 @@ contract Kanga is ReentrancyGuard, Ownable {
             followers[i] = t.follower;
             tokensIn[i] = t.tokenIn;
             tokensOut[i] = t.tokenOut;
+            amountsIn[i] = t.amountIn;
+            amountsOut[i] = t.amountOut;
+            atBlocks[i] = t.atBlock;
+        }
+        return (leaders, followers, tokensIn, tokensOut, amountsIn, amountsOut, atBlocks);
+    }
+
+    function getReplicaPositionBatch(uint256[] calldata replicaIds) external view returns (
+        address[] memory followers,
+        address[] memory leaders,
+        address[] memory tokensIn,
+        address[] memory tokensOut,
+        uint256[] memory amountsIn,
+        uint256[] memory openedAtBlocks,
+        bool[] memory closedFlags,
+        uint256[] memory amountsOutOnClose
+    ) {
+        uint256 n = replicaIds.length;
+        followers = new address[](n);
+        leaders = new address[](n);
+        tokensIn = new address[](n);
+        tokensOut = new address[](n);
+        amountsIn = new uint256[](n);
+        openedAtBlocks = new uint256[](n);
+        closedFlags = new bool[](n);
+        amountsOutOnClose = new uint256[](n);
+        for (uint256 i = 0; i < n; i++) {
+            ReplicaPosition storage r = replicaPositions[replicaIds[i]];
+            followers[i] = r.follower;
+            leaders[i] = r.leader;
+            tokensIn[i] = r.tokenIn;
+            tokensOut[i] = r.tokenOut;
+            amountsIn[i] = r.amountIn;
+            openedAtBlocks[i] = r.openedAtBlock;
+            closedFlags[i] = r.closed;
+            amountsOutOnClose[i] = r.amountOutOnClose;
+        }
+        return (followers, leaders, tokensIn, tokensOut, amountsIn, openedAtBlocks, closedFlags, amountsOutOnClose);
+    }
+
+    function getMirrorSessionBatch(uint256[] calldata sessionIds) external view returns (
+        address[] memory followers,
+        address[] memory leaders,
+        uint256[] memory maxAllocs,
+        uint256[] memory usedAllocs,
+        uint256[] memory slippageBps,
+        uint256[] memory openedAtBlocks,
+        bool[] memory activeFlags
+    ) {
+        uint256 n = sessionIds.length;
+        followers = new address[](n);
+        leaders = new address[](n);
+        maxAllocs = new uint256[](n);
+        usedAllocs = new uint256[](n);
+        slippageBps = new uint256[](n);
