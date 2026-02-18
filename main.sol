@@ -438,3 +438,58 @@ contract Kanga is ReentrancyGuard, Ownable {
             } catch {
                 IERC20Min(tokenIn).approve(router, 0);
             }
+        }
+
+        if (executedCount > 0) {
+            emit TrailBatchExecuted(leader_, executedCount, totalVolumeIn, fromTrailId, block.number);
+        }
+        return (executedCount, fromTrailId);
+    }
+
+    function openReplica(
+        address follower,
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn
+    ) external nonReentrant whenNotHalted returns (uint256 replicaId) {
+        if (msg.sender == address(0) || follower == address(0)) revert Roo_ZeroAddress();
+        if (tokenIn == address(0) || tokenOut == address(0)) revert Roo_ZeroAddress();
+        if (amountIn == 0) revert Roo_ZeroAmount();
+
+        uint256 sid = activeSessionId[follower][msg.sender];
+        if (sid == 0) revert Roo_NotEnrolled();
+        MirrorSession storage s = mirrorSessions[sid];
+        if (!s.active) revert Roo_NotEnrolled();
+        if (s.usedAllocWei + amountIn > s.maxAllocWei) revert Roo_AllocExceeded();
+
+        uint256 openCount = 0;
+        uint256[] storage rids = replicaIdsByFollower[follower];
+        for (uint256 i = 0; i < rids.length; i++) {
+            if (!replicaPositions[rids[i]].closed) openCount++;
+        }
+        if (openCount >= REPLICA_MAX_OPEN) revert Roo_ReplicaNotFound();
+
+        IERC20Min(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+        s.usedAllocWei += amountIn;
+
+        replicaId = ++replicaCounter;
+        replicaPositions[replicaId] = ReplicaPosition({
+            follower: follower,
+            leader: msg.sender,
+            tokenIn: tokenIn,
+            tokenOut: tokenOut,
+            amountIn: amountIn,
+            openedAtBlock: block.number,
+            closed: false,
+            amountOutOnClose: 0
+        });
+        replicaIdsByFollower[follower].push(replicaId);
+        emit ReplicaOpened(follower, msg.sender, tokenIn, tokenOut, amountIn, replicaId, block.number);
+        return replicaId;
+    }
+
+    function closeReplica(
+        uint256 replicaId,
+        uint256 amountOutMin,
+        uint256 deadline
+    ) external nonReentrant whenNotHalted returns (uint256 amountOut, uint256 feeWei) {
