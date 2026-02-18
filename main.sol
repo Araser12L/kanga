@@ -383,3 +383,58 @@ contract Kanga is ReentrancyGuard, Ownable {
         uint256[] calldata amountsOutMin,
         uint256 deadline
     ) external nonReentrant whenNotHalted returns (uint256 executedCount, uint256 fromTrailId) {
+        uint256 n = followers.length;
+        if (n != tokensIn.length || n != tokensOut.length || n != amountsIn.length || n != amountsOutMin.length) revert Roo_BatchLengthMismatch();
+        if (n == 0) return (0, 0);
+
+        address leader_ = msg.sender;
+        fromTrailId = trailCounter + 1;
+        uint256 totalVolumeIn = 0;
+
+        for (uint256 i = 0; i < n; i++) {
+            address follower = followers[i];
+            address tokenIn = tokensIn[i];
+            address tokenOut = tokensOut[i];
+            uint256 amountIn = amountsIn[i];
+            uint256 amountOutMin_ = amountsOutMin[i];
+
+            uint256 sid = activeSessionId[follower][leader_];
+            if (sid == 0) continue;
+            MirrorSession storage s = mirrorSessions[sid];
+            if (!s.active || s.usedAllocWei + amountIn > s.maxAllocWei) continue;
+            if (block.number < lastTrailBlockByLeader[leader_] + TRAIL_COOLDOWN_BLOCKS && executedCount > 0) continue;
+
+            if (amountIn == 0 || tokenIn == address(0) || tokenOut == address(0)) continue;
+
+            address[] memory path = new address[](2);
+            path[0] = tokenIn;
+            path[1] = tokenOut;
+            uint256 feeWei = (amountIn * MIRROR_FEE_BPS) / BPS_BASE;
+            uint256 amountInAfterFee = amountIn - feeWei;
+
+            if (IERC20Min(tokenIn).transferFrom(leader_, address(this), amountIn) != true) continue;
+            if (feeWei > 0) {
+                if (!IERC20Min(tokenIn).transfer(feeVault, feeWei)) continue;
+            }
+            IERC20Min(tokenIn).approve(router, amountInAfterFee);
+            uint256 balanceBefore = IERC20Min(tokenOut).balanceOf(follower);
+            try IRouterMin(router).swapExactTokensForTokens(amountInAfterFee, amountOutMin_, path, follower, deadline) returns (uint256[] memory amounts) {
+                uint256 amountOut = amounts[amounts.length - 1];
+                IERC20Min(tokenIn).approve(router, 0);
+                uint256 balanceAfter = IERC20Min(tokenOut).balanceOf(follower);
+                if (balanceAfter <= balanceBefore) continue;
+                amountOut = balanceAfter - balanceBefore;
+                s.usedAllocWei += amountIn;
+                uint256 lid = leaderIdByAddress[leader_];
+                if (lid != 0) leaderProfiles[lid].totalVolumeIn += amountIn;
+                lastTrailBlockByLeader[leader_] = block.number;
+                trailCounter++;
+                trailRecords[trailCounter] = TrailRecord(leader_, follower, tokenIn, tokenOut, amountIn, amountOut, block.number);
+                trailIdsByLeader[leader_].push(trailCounter);
+                trailIdsByFollower[follower].push(trailCounter);
+                emit TrailExecuted(leader_, follower, tokenIn, tokenOut, amountIn, amountOut, trailCounter, block.number);
+                executedCount++;
+                totalVolumeIn += amountIn;
+            } catch {
+                IERC20Min(tokenIn).approve(router, 0);
+            }
