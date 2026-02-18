@@ -53,3 +53,58 @@ contract Kanga is ReentrancyGuard, Ownable {
         address indexed follower,
         address indexed leader,
         address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 replicaId,
+        uint256 atBlock
+    );
+    event ReplicaClosed(
+        address indexed follower,
+        uint256 indexed replicaId,
+        uint256 amountOut,
+        uint256 feeWei,
+        uint256 atBlock
+    );
+    event LeaderDesignated(address indexed leader, uint256 maxFollowersCap, uint256 leaderId, uint256 atBlock);
+    event LeaderRevoked(address indexed leader, uint256 leaderId, uint256 atBlock);
+    event RooFeeWithdrawn(address indexed to, uint256 amountWei, uint256 atBlock);
+    event RooRouterUpdated(address indexed previousRouter, address indexed newRouter, uint256 updateNumber);
+    event RooOperatorSet(address indexed previousOperator, address indexed newOperator);
+    event RooBotHaltToggled(bool halted);
+    event TrailBatchExecuted(
+        address indexed leader,
+        uint256 trailCount,
+        uint256 totalVolumeIn,
+        uint256 fromTrailId,
+        uint256 atBlock
+    );
+
+    error Roo_ZeroAmount();
+    error Roo_ZeroAddress();
+    error Roo_PathLength();
+    error Roo_SlippageExceeded();
+    error Roo_TransferInFailed();
+    error Roo_TransferOutFailed();
+    error Roo_ApproveFailed();
+    error Roo_RouterCallFailed();
+    error Roo_BotHalted();
+    error Roo_NotOperator();
+    error Roo_LeaderNotFound();
+    error Roo_LeaderCapReached();
+    error Roo_MirrorSessionNotFound();
+    error Roo_ReplicaNotFound();
+    error Roo_ReplicaAlreadyClosed();
+    error Roo_RouterUpdatesExhausted();
+    error Roo_MaxLeadersReached();
+    error Roo_AlreadyLeader();
+    error Roo_NotEnrolled();
+    error Roo_AllocExceeded();
+    error Roo_CooldownActive();
+    error Roo_BatchLengthMismatch();
+
+    uint256 public constant MIRROR_FEE_BPS = 15;
+    uint256 public constant BPS_BASE = 10000;
+    uint256 public constant MIN_PATH_LEN = 2;
+    uint256 public constant MAX_PATH_LEN = 6;
+    uint256 public constant MAX_ROUTER_UPDATES = 7;
+    uint256 public constant MAX_LEADERS = 50;
