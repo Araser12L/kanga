@@ -108,3 +108,58 @@ contract Kanga is ReentrancyGuard, Ownable {
     uint256 public constant MAX_PATH_LEN = 6;
     uint256 public constant MAX_ROUTER_UPDATES = 7;
     uint256 public constant MAX_LEADERS = 50;
+    uint256 public constant MAX_FOLLOWERS_PER_LEADER = 200;
+    uint256 public constant TRAIL_COOLDOWN_BLOCKS = 3;
+    uint256 public constant REPLICA_MAX_OPEN = 32;
+    uint256 public constant ROO_DOMAIN_SEED = 0x8F7E6D5C4B3A2918F6E5D4C3B2A1908E7D6C5B4A3928;
+
+    address public immutable feeVault;
+    address public immutable weth;
+    uint256 public immutable genesisBlock;
+    bytes32 public immutable chainSalt;
+
+    address public router;
+    address public operator;
+    uint256 public routerUpdateCount;
+    uint256 public trailCounter;
+    uint256 public replicaCounter;
+    uint256 public leaderCounter;
+    uint256 public sessionCounter;
+    bool public botHalted;
+
+    struct LeaderProfile {
+        address leader;
+        uint256 maxFollowersCap;
+        uint256 followerCount;
+        uint256 totalVolumeIn;
+        bool active;
+        uint256 registeredAtBlock;
+    }
+
+    struct MirrorSession {
+        address follower;
+        address leader;
+        uint256 maxAllocWei;
+        uint256 usedAllocWei;
+        uint256 trailSlippageBps;
+        uint256 openedAtBlock;
+        bool active;
+    }
+
+    struct ReplicaPosition {
+        address follower;
+        address leader;
+        address tokenIn;
+        address tokenOut;
+        uint256 amountIn;
+        uint256 openedAtBlock;
+        bool closed;
+        uint256 amountOutOnClose;
+    }
+
+    struct TrailRecord {
+        address leader;
+        address follower;
+        address tokenIn;
+        address tokenOut;
+        uint256 amountIn;
